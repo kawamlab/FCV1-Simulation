@@ -327,6 +327,10 @@ void SimulatorFCV1::set_velocity(float velocity_x, float velocity_y, float angul
 {
     shot_id = id;
     int index = shot / 2;
+    if(shot % 2 != 0)
+    {
+        index += 8;
+    }
     stone_bodies[index]->SetLinearVelocity(b2Vec2(velocity_x, velocity_y));
     stone_bodies[index]->SetAngularVelocity(angular_velocity);
     stone_bodies[index]->SetEnabled(true);
