@@ -20,5 +20,5 @@ np_angular_velocities = np.array(angular_velocities)
 result, flag = stone_simulator.simulator(np_position, shot, np_x_velocities, np_y_velocities, np_angular_velocities)
 
 # print(result)
-print(flag)
+# print(flag)
 print(result)
