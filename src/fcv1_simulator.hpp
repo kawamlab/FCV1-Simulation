@@ -15,6 +15,7 @@ constexpr float kPi = 3.14159265359f;
 constexpr float cw = -kPi / 2.f;
 constexpr float ccw = kPi / 2.f;
 constexpr float y_upper_limit = 40.234f;
+constexpr float y_lower_limit = 32.004f;
 constexpr float x_upper_limit = 2.375f;
 constexpr float x_lower_limit = -2.375f;
 constexpr float stone_x_upper_limit = x_upper_limit - 2 * kStoneRadius;
@@ -340,4 +341,3 @@ private:
     int index;
     int x_velocities_length;
 };
-

@@ -68,24 +68,23 @@ inline float angular_acceleration(float linearSpeed)
 }
 
 py::array_t<double> convert_stonedata(const std::vector<digitalcurling3::StoneData>& simulated_stones, int simulations) {
-    
-    
+
     const size_t num_coordinates = 2; // xとyの座標数
 
     // 1次元配列を作成（各ストーンのx, y座標を順に格納）
-    std::vector<double> temp_result(simulations * stones_per_simulation * num_coordinates);
+    std::vector<double> temp_result(simulations * 8 * num_coordinates);
 
     // 1次元配列にデータをコピー
     for (int sim = 0; sim < simulations; ++sim) {
-        for (size_t i = 0; i < stones_per_simulation; ++i) {
-            size_t index = sim * stones_per_simulation * num_coordinates + i * num_coordinates;
-            temp_result[index] = simulated_stones[sim * stones_per_simulation + i].position.x;
-            temp_result[index + 1] = simulated_stones[sim * stones_per_simulation + i].position.y;
+        // size_t index = sim * stones_per_simulation * num_coordinates + i * num_coordinates;
+        for (int i = 0; i < 8; ++i) {
+            temp_result[16 * sim + i * 2] = simulated_stones[sim * 16 + i].position.x;
+            temp_result[16 * sim + i * 2 + 1] = simulated_stones[sim * 16 + i].position.y;
         }
     }
 
     // 2次元配列に変換
-    py::array_t<double> result(py::array::ShapeContainer({simulations, stones_per_simulation * num_coordinates}), temp_result.data());
+    py::array_t<double> result(py::array::ShapeContainer({simulations, 8 * num_coordinates}), temp_result.data());
 
     return result;
 }
@@ -222,6 +221,7 @@ digitalcurling3::FiveLockWithID SimulatorFCV1::is_in_playarea()
 
 void SimulatorFCV1::step(float seconds_per_frame)
 {
+    int step_i = 0;
     // simulate
     while (!is_awake.empty())
     {
@@ -235,6 +235,20 @@ void SimulatorFCV1::step(float seconds_per_frame)
             // ストーンが停止してる場合は無視
             if (stone_speed > EPSILON)
             {
+                digitalcurling3::Vector2 stone_position = {stone_bodies[index]->GetPosition().x, stone_bodies[index]->GetPosition().y};
+                // ストーンがシート外の場合は計算から除外
+                if (stone_position.x > stone_x_upper_limit || stone_x_lower_limit > stone_position.x)
+                {
+                    // ストーンを初期位置に戻す
+                    auto stone = stones[index];
+                    stone_bodies[index]->SetTransform(b2Vec2(stone.position.x, stone.position.y), 0.f);
+                    stone_bodies[index]->SetLinearVelocity(b2Vec2_zero);
+                    stone_bodies[index]->SetAngularVelocity(0.f);
+                    stone_bodies[index]->SetAwake(false);
+                    stone_bodies[index]->SetEnabled(false);
+                    is_awake.erase(std::remove(is_awake.begin(), is_awake.end(), index), is_awake.end());
+                    break;
+                }
                 // ストーンの速度を計算
                 float const new_stone_speed = stone_speed + longitudinal_acceleration(stone_speed) * seconds_per_frame;
                 if (new_stone_speed <= 0.f)
@@ -277,6 +291,10 @@ void SimulatorFCV1::step(float seconds_per_frame)
             seconds_per_frame,
             8,  // velocityIterations (公式マニュアルでの推奨値は 8)
             3); // positionIterations (公式マニュアルでの推奨値は 3)
+        step_i += 1;
+        if (step_i > 50000){
+            break;
+        }
     }
 }
 
@@ -346,7 +364,7 @@ digitalcurling3::StoneDataWithID SimulatorFCV1::get_stones()
     for (b2Body *body : stone_bodies)
     {
         b2Vec2 position = body->GetPosition();
-        if (position.x > stone_x_upper_limit || position.x < stone_x_lower_limit || position.y > y_upper_limit)
+        if (position.x > stone_x_upper_limit || position.x < stone_x_lower_limit || position.y > y_upper_limit || position.y < y_lower_limit)
         {
             body->SetTransform(b2Vec2(0.f, 0.f), 0.f);
         }
@@ -359,12 +377,12 @@ digitalcurling3::StoneDataWithID SimulatorFCV1::get_stones()
 
 
 StoneSimulator::StoneSimulator() : storage(), shot() {
-    x_velocities.reserve(100);
-    y_velocities.reserve(100);
-    angular_velocities.reserve(100);
+    this->x_velocities.reserve(10000);
+    this->y_velocities.reserve(10000);
+    this->angular_velocities.reserve(10000);
     free_guard_zone_flags.reserve(100);
     storage.reserve(16);
-    simulated_stones.reserve(100);
+    simulated_stones.reserve(10000);
 
     num_threads = read_configfile("config.json")["thread_num"];
     omp_set_num_threads(num_threads);
@@ -389,7 +407,16 @@ std::pair<py::array_t<double>, py::array_t<unsigned int>> StoneSimulator::simula
 {
     this->shot = shot;
     x_velocities_length = len(x_velocities);
+    this->x_velocities.clear();
+    this->y_velocities.clear();
+    this->angular_velocities.clear();
+    simulated_stones.clear();
     storage.clear();
+    std::vector<digitalcurling3::StoneDataWithID> flat_result(x_velocities_length);
+    for (int i = 0; i < num_threads; i++) {
+        local_free_guard_zone_flags[i].clear();
+        local_simulated_stones[i].clear();
+    }
     for (size_t i = 0; i < x_velocities_length; ++i)
     {
         this->x_velocities.push_back(x_velocities.at(i));
@@ -415,6 +442,7 @@ std::pair<py::array_t<double>, py::array_t<unsigned int>> StoneSimulator::simula
         simulators[thread_id]->step(0.002);
         local_free_guard_zone_flags[thread_id].push_back(simulators[thread_id]->is_in_playarea());
         local_simulated_stones[thread_id].push_back(simulators[thread_id]->get_stones());
+        flat_result[i] = simulators[thread_id]->get_stones();
     }
     simulated_stones.clear();
     free_guard_zone_flags.clear();
