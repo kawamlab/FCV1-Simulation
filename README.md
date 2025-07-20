@@ -22,8 +22,7 @@ cmake --build . --target install
 ## Build simulator
 CmakeLists.txtの4行目は,バージョン8以上必須
 ```
-mkdir build
-cd build
+cd /workspaces/FCV1-Simulation/src/build/
 cmake ..
 make
 ```
