@@ -67,7 +67,6 @@ jobs:
       - name: Build simulator
         run: |
           cd src/build
-          cd build
           cmake ..
           cmake --build . --config Release
 
