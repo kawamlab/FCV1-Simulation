@@ -291,7 +291,7 @@ public:
     // void no_tick_rule();
     void step(float seconds_per_frame);
     void set_stones();
-    void set_velocity(float velocity_x, float velocity_y, float angular_velocity, int id);
+    void set_velocity(float velocity_x, float velocity_y, float angular_velocity, unsigned int shot_per_team, unsigned int team_id, int id);
     digitalcurling3::StoneDataWithID get_stones();
 
 private:
@@ -315,7 +315,7 @@ private:
 class StoneSimulator {
 public:
     StoneSimulator();
-    std::pair<py::array_t<double>, py::array_t<unsigned int>> simulator(py::array_t<double> stone_positions, int shot, py::array_t<double> x_velocities, py::array_t<double> y_velocities, py::array_t<int> angular_velocities);
+    std::pair<py::array_t<double>, py::array_t<unsigned int>> simulator(py::array_t<double> stone_positions, int total_shot, pybind11::array_t<double> x_velocity, pybind11::array_t<double> y_velocity, pybind11::array_t<int> angular_sign, unsigned int first_team_hummer, unsigned int shot_per_team);
 
 private:
     std::vector<digitalcurling3::StoneData> storage;
@@ -335,7 +335,9 @@ private:
     std::vector<double> angular_velocities;
     std::vector<SimulatorFCV1 *> simulators;
     json config;
-    int shot;
+    int total_shot;
+    int shot_per_team;
+    int team_id;
     int num_threads;
     int thread_id;
     int index;

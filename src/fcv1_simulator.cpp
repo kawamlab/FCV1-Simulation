@@ -69,22 +69,24 @@ inline float angular_acceleration(float linearSpeed)
 
 py::array_t<double> convert_stonedata(const std::vector<digitalcurling3::StoneData>& simulated_stones, int simulations) {
 
-    const size_t num_coordinates = 2; // xとyの座標数
-
     // 1次元配列を作成（各ストーンのx, y座標を順に格納）
-    std::vector<double> temp_result(simulations * 8 * num_coordinates);
+    int total_size = simulations * stones_per_simulation * num_coordinates;
+    std::vector<double> temp_result;
+    temp_result.resize(total_size);
 
     // 1次元配列にデータをコピー
     for (int sim = 0; sim < simulations; ++sim) {
+        size_t base = static_cast<size_t>(sim) * stones_per_simulation * num_coordinates; // sim * 16 * 2 = sim * 32
         // size_t index = sim * stones_per_simulation * num_coordinates + i * num_coordinates;
-        for (int i = 0; i < 8; ++i) {
-            temp_result[16 * sim + i * 2] = simulated_stones[sim * 16 + i].position.x;
-            temp_result[16 * sim + i * 2 + 1] = simulated_stones[sim * 16 + i].position.y;
+        for (int i = 0; i < 16; ++i) {
+            temp_result[base + i * 2] = simulated_stones[sim * 16 + i].position.x;
+            temp_result[base + i * 2 + 1] = simulated_stones[sim * 16 + i].position.y;
         }
     }
 
     // 2次元配列に変換
-    py::array_t<double> result(py::array::ShapeContainer({simulations, 8 * num_coordinates}), temp_result.data());
+    py::array_t<double> result({static_cast<size_t>(simulations), stones_per_simulation * num_coordinates});
+    std::memcpy(result.mutable_data(), temp_result.data(), total_size * sizeof(double));
 
     return result;
 }
@@ -341,14 +343,11 @@ void SimulatorFCV1::set_stones()
     }
 }
 
-void SimulatorFCV1::set_velocity(float velocity_x, float velocity_y, float angular_velocity, int id)
+void SimulatorFCV1::set_velocity(float velocity_x, float velocity_y, float angular_velocity, unsigned int shot_per_team, unsigned int team_id, int id)
 {
     shot_id = id;
-    int index = shot / 2;
-    if(shot % 2 != 0)
-    {
-        index += 8;
-    }
+    int index = shot_per_team + team_id * 8;
+
     stone_bodies[index]->SetLinearVelocity(b2Vec2(velocity_x, velocity_y));
     stone_bodies[index]->SetAngularVelocity(angular_velocity);
     stone_bodies[index]->SetEnabled(true);
@@ -376,7 +375,7 @@ digitalcurling3::StoneDataWithID SimulatorFCV1::get_stones()
 }
 
 
-StoneSimulator::StoneSimulator() : storage(), shot() {
+StoneSimulator::StoneSimulator() : storage(), total_shot() {
     this->x_velocities.reserve(10000);
     this->y_velocities.reserve(10000);
     this->angular_velocities.reserve(10000);
@@ -403,16 +402,17 @@ StoneSimulator::StoneSimulator() : storage(), shot() {
     /// \param[in] y_velocities The y component of the velocity of the stone to be thrown
     /// \param[in] angular_velocities 1 -> cw, -1 -> ccw
     /// \returns The positions of the stones after the simulations
-std::pair<py::array_t<double>, py::array_t<unsigned int>> StoneSimulator::simulator(py::array_t<double> stone_positions, int shot, py::array_t<double> x_velocities, py::array_t<double> y_velocities, py::array_t<int> angular_velocities)
+std::pair<py::array_t<double>, py::array_t<unsigned int>> StoneSimulator::simulator(py::array_t<double> stone_positions, int total_shot, py::array_t<double> x_velocities, py::array_t<double> y_velocities, py::array_t<int> angular_velocities, unsigned int team_id, unsigned int shot_per_team)
 {
-    this->shot = shot;
+    this->total_shot = total_shot;
+    this->shot_per_team = shot_per_team;
+    this->team_id = team_id;
     x_velocities_length = len(x_velocities);
     this->x_velocities.clear();
     this->y_velocities.clear();
     this->angular_velocities.clear();
     simulated_stones.clear();
     storage.clear();
-    std::vector<digitalcurling3::StoneDataWithID> flat_result(x_velocities_length);
     for (int i = 0; i < num_threads; i++) {
         local_free_guard_zone_flags[i].clear();
         local_simulated_stones[i].clear();
@@ -431,18 +431,17 @@ std::pair<py::array_t<double>, py::array_t<unsigned int>> StoneSimulator::simula
 
     for (int i = 0; i < num_threads; i++) {
         simulators[i] = new SimulatorFCV1(storage);
-        simulators[i]->change_shot(this->shot);
+        simulators[i]->change_shot(this->total_shot);
     }
 
     #pragma omp parallel for num_threads(num_threads) schedule(dynamic, 1)
     for (int i = 0; i < x_velocities_length; ++i) {
         int thread_id = omp_get_thread_num();
         simulators[thread_id]->set_stones();
-        simulators[thread_id]->set_velocity(this->x_velocities[i], this->y_velocities[i], this->angular_velocities[i], i);
+        simulators[thread_id]->set_velocity(this->x_velocities[i], this->y_velocities[i], this->angular_velocities[i], this->shot_per_team, this->team_id, i);
         simulators[thread_id]->step(0.002);
         local_free_guard_zone_flags[thread_id].push_back(simulators[thread_id]->is_in_playarea());
         local_simulated_stones[thread_id].push_back(simulators[thread_id]->get_stones());
-        flat_result[i] = simulators[thread_id]->get_stones();
     }
     simulated_stones.clear();
     free_guard_zone_flags.clear();
@@ -453,6 +452,7 @@ std::pair<py::array_t<double>, py::array_t<unsigned int>> StoneSimulator::simula
             simulated_stones.push_back(stone);
         }
     }
+
     for (int i = 0; i < num_threads; i++) {
         for (digitalcurling3::FiveLockWithID flag : local_free_guard_zone_flags[i]) {
             free_guard_zone_flags.push_back(flag);
