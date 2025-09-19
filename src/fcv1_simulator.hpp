@@ -286,7 +286,7 @@ public:
     };
     void is_freeguardzone();
     void change_shot(int shot);
-    digitalcurling3::FiveLockWithID is_in_playarea();
+    void is_in_playarea();
     // void on_center_line();
     // void no_tick_rule();
     void step(float seconds_per_frame);
@@ -315,25 +315,24 @@ private:
 class StoneSimulator {
 public:
     StoneSimulator();
-    std::pair<py::array_t<double>, py::array_t<unsigned int>> simulator(py::array_t<double> stone_positions, int total_shot, pybind11::array_t<double> x_velocity, pybind11::array_t<double> y_velocity, pybind11::array_t<int> angular_sign, unsigned int first_team_hummer, unsigned int shot_per_team);
+    py::array_t<double> simulator(py::array_t<double> team0_stone_positions, py::array_t<double> team1_stone_positions, int total_shot, pybind11::array_t<double> x_velocity, pybind11::array_t<double> y_velocity, pybind11::array_t<int> angular_sign, unsigned int first_team_hummer, unsigned int shot_per_team, unsigned int hummer_team);
 
 private:
     std::vector<digitalcurling3::StoneData> storage;
     std::vector<digitalcurling3::StoneDataWithID> simulated_stones;
     std::vector<digitalcurling3::StoneData> state_values;
     py::array_t<double> result;
-    std::vector<std::vector<digitalcurling3::FiveLockWithID>> local_free_guard_zone_flags;
     std::vector<std::vector<digitalcurling3::StoneDataWithID>> local_simulated_stones;
-    std::vector<digitalcurling3::FiveLockWithID> free_guard_zone_flags;
-    digitalcurling3::FiveLockWithID five_lock_with_id;
     digitalcurling3::StoneDataWithID simulated_stones_with_id;
-    std::vector<unsigned int> vector_five_lock_result;
-    py::array_t<unsigned int> five_lock_result;
     std::string model_path;
     std::vector<double> x_velocities;
     std::vector<double> y_velocities;
     std::vector<double> angular_velocities;
     std::vector<SimulatorFCV1 *> simulators;
+
+    py::array_t<double> simulated_team0_stone_positions;
+    py::array_t<double> simulated_team1_stone_positions;
+
     json config;
     int total_shot;
     int shot_per_team;
