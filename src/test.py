@@ -9,8 +9,10 @@ stone_simulator = StoneSimulator()
 with open("data.json", "r") as read_file:
     data = json.load(read_file)
 
-position: list = data["position"]
-np_position = np.array(position)
+team0_position: list = data["team0_positions"]
+team1_position: list = data["team1_positions"]
+np_team0_position = np.array(team0_position)
+np_team1_position = np.array(team1_position)
 shot = data["shot"]
 shot_per_team = data["shot_per_team"]
 team_id = data["team_id"]
@@ -21,7 +23,7 @@ np_x_velocities = np.array(x_velocities)
 np_y_velocities = np.array(y_velocities)
 np_angular_velocities = np.array(angular_velocities)
 
-simulated_stones_position, flag = stone_simulator.simulator(np_position, shot, np_x_velocities, np_y_velocities, np_angular_velocities, team_id, shot_per_team)
+simulated_stones_position = stone_simulator.simulator(np_team0_position, np_team1_position, shot, np_x_velocities, np_y_velocities, np_angular_velocities, team_id, shot_per_team, 1)
 
 # print(result)
 # print(flag)

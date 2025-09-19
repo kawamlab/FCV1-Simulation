@@ -10,10 +10,7 @@ jobs:
   build:
     strategy:
       matrix:
-        # os: [ubuntu-22.04, windows-latest, macos-latest]
-        os: [ubuntu-22.04]
-        # os: [windows-latest]
-        # python-version: ["3.9"]
+        os: [windows-latest, ubuntu-22.04]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     runs-on: ${{matrix.os}}
@@ -66,19 +63,36 @@ jobs:
 
       - name: Build simulator
         run: |
-          cd src/build
+          cd src
+          mkdir build
+          cd build
           cmake ..
           cmake --build . --config Release
 
-      - name: Copy artifact for upload
+      - name: Copy artifact (Windows)
+        if: matrix.os == 'windows-latest'
         run: |
-          cp src/build/simulator.so simulator-${{ matrix.os }}-py${{ matrix.python-version }}.so
+          cp src/build/simulator*.pyd simulator-${{ matrix.os }}-py${{ matrix.python-version }}.pyd
 
-      - name: Upload artifact
+      - name: Copy artifact (Ubuntu)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          cp src/build/simulator*.so simulator-${{ matrix.os }}-py${{ matrix.python-version }}.so
+
+      - name: Upload artifact (Windows)
+        if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: simulator-${{matrix.os}}-py${{matrix.python-version}}
-          path: simulator-${{ matrix.os }}-py${{ matrix.python-version }}.so
+          name: simulator-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: simulator-${{ matrix.os }}-py${{ matrix.python-version }}.pyd
+
+      - name: Upload artifact (Ubuntu)
+        if: matrix.os == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+            name: simulator-${{ matrix.os }}-py${{ matrix.python-version }}
+            path: simulator-${{ matrix.os }}-py${{ matrix.python-version }}.so
+
 
   release:
     needs: build
@@ -101,4 +115,4 @@ jobs:
         run: |
           ls -l
           VERSION=$(echo "${GITHUB_REF}" | cut -d'/' -f3)
-          gh release create ${VERSION} -t "${VERSION}" simulator-*.so
+          gh release create ${VERSION} -t "${VERSION}" simulator-*.pyd simulator-*.so
