@@ -35,7 +35,9 @@ else()
     )
 endif()
 
-
 target_include_directories(simulator PRIVATE "${CMAKE_SOURCE_DIR}/../extern/Box2D/include")
 target_link_libraries(simulator PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(simulator PRIVATE pybind11::module)
+target_link_libraries(simulator PRIVATE box2d::box2d)
+target_link_libraries(simulator PRIVATE OpenMP::OpenMP_CXX)  # OpenMPをリンクする
+set_target_properties(simulator PROPERTIES PREFIX "")
