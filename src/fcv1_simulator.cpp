@@ -250,13 +250,13 @@ void SimulatorFCV1::step(float seconds_per_frame)
                 {
                     // ストーンを初期位置に戻す
                     auto stone = stones[index];
-                    stone_bodies[index]->SetTransform(b2Vec2(stone.position.x, stone.position.y), 0.f);
+                    stone_bodies[index]->SetTransform(b2Vec2(0.f, 0.f), 0.f);
                     stone_bodies[index]->SetLinearVelocity(b2Vec2_zero);
                     stone_bodies[index]->SetAngularVelocity(0.f);
                     stone_bodies[index]->SetAwake(false);
                     stone_bodies[index]->SetEnabled(false);
                     is_awake.erase(std::remove(is_awake.begin(), is_awake.end(), index), is_awake.end());
-                    break;
+                    continue;
                 }
                 // ストーンの速度を計算
                 float const new_stone_speed = stone_speed + longitudinal_acceleration(stone_speed) * seconds_per_frame;
