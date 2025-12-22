@@ -29,4 +29,5 @@ simulated_stones_position = stone_simulator.simulator(np_team0_position, np_team
 # print(flag)
 for i in range(len(simulated_stones_position)):
     pprint(simulated_stones_position[i])
+pprint(simulated_stones_position.shape)
 # 1.9991474151611328 39.983848571777344

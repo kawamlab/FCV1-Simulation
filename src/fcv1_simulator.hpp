@@ -21,6 +21,7 @@ constexpr float x_lower_limit = -2.375f;
 constexpr float stone_x_upper_limit = x_upper_limit - kStoneRadius;
 constexpr float stone_x_lower_limit = x_lower_limit + kStoneRadius;
 constexpr float stone_y_upper_limit = y_upper_limit + kStoneRadius;
+constexpr float stone_y_lower_limit = y_lower_limit + kStoneRadius;
 constexpr float tee_line = 38.405f;
 constexpr float min_y = 30.0f;
 constexpr float house_radius = 1.829f;
@@ -304,7 +305,7 @@ private:
     std::vector<int> moved;
     std::vector<int> on_center_line;
     std::vector<int> in_free_guard_zone;
-    digitalcurling3::FiveLockWithID five_lock_with_id;
+    std::vector<int> pending_awake;
     int shot_id;
     bool free_guard_zone;
     b2World world;
@@ -343,3 +344,4 @@ private:
     int index;
     int x_velocities_length;
 };
+
