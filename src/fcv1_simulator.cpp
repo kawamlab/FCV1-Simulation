@@ -109,8 +109,8 @@ void SimulatorFCV1::ContactListener::PostSolve(b2Contact *contact, const b2Conta
     collision.a.id = static_cast<int>(a_body->GetUserData().pointer);
     collision.b.id = static_cast<int>(b_body->GetUserData().pointer);
 
-    add_unique_id(instance_->is_awake, collision.a.id);
-    add_unique_id(instance_->is_awake, collision.b.id);
+    add_unique_id(instance_->pending_awake, collision.a.id);
+    add_unique_id(instance_->pending_awake, collision.b.id);
 
     add_unique_id(instance_->moved, collision.a.id);
     add_unique_id(instance_->moved, collision.b.id);
@@ -179,8 +179,6 @@ void SimulatorFCV1::change_shot(int shot)
 
 void SimulatorFCV1::is_in_playarea()
 {
-    five_lock_with_id.id = shot_id;
-
     for (int i : in_free_guard_zone)
     {
         auto body = stone_bodies[i];
@@ -231,39 +229,45 @@ void SimulatorFCV1::is_in_playarea()
 void SimulatorFCV1::step(float seconds_per_frame)
 {
     int step_i = 0;
+
     // simulate
+    // 正しい繰り返し：現在起きている石の集合を毎フレーム再構築する（走査中に is_awake を変更しない）
     while (!is_awake.empty())
     {
-        for (auto &index : is_awake)
+        std::vector<int> next_awake;
+        next_awake.reserve(is_awake.size());
+
+        for (int index : is_awake)
         {
             b2Vec2 const stone_velocity = stone_bodies[index]->GetLinearVelocity(); // copy
             auto const [normalized_stone_velocity, stone_speed] = normalize(stone_velocity);
             float const angular_velocity = stone_bodies[index]->GetAngularVelocity();
 
-            // 速度を計算
-            // ストーンが停止してる場合は無視
+            // ストーンが停止してる場合は next_awake に入れない（＝除外）
             if (stone_speed > EPSILON)
             {
                 digitalcurling3::Vector2 stone_position = {stone_bodies[index]->GetPosition().x, stone_bodies[index]->GetPosition().y};
-                // ストーンがシート外の場合は計算から除外
-                if (stone_position.x > stone_x_upper_limit || stone_x_lower_limit > stone_position.x || stone_position.y > stone_y_upper_limit)
+                // ストーンがシート外の場合は初期位置へ戻して除外 ただし、y座標方向については今回だけ無視
+                if (stone_position.x > stone_x_upper_limit || stone_x_lower_limit > stone_position.x)
                 {
-                    // ストーンを初期位置に戻す
                     auto stone = stones[index];
                     stone_bodies[index]->SetTransform(b2Vec2(0.f, 0.f), 0.f);
                     stone_bodies[index]->SetLinearVelocity(b2Vec2_zero);
                     stone_bodies[index]->SetAngularVelocity(0.f);
                     stone_bodies[index]->SetAwake(false);
                     stone_bodies[index]->SetEnabled(false);
-                    is_awake.erase(std::remove(is_awake.begin(), is_awake.end(), index), is_awake.end());
+                    // do not add to next_awake
                     continue;
                 }
-                // ストーンの速度を計算
+
+                // 速度の更新
                 float const new_stone_speed = stone_speed + longitudinal_acceleration(stone_speed) * seconds_per_frame;
                 if (new_stone_speed <= 0.f)
                 {
                     stone_bodies[index]->SetLinearVelocity(b2Vec2_zero);
-                    is_awake.erase(std::remove(is_awake.begin(), is_awake.end(), index), is_awake.end());
+                    stone_bodies[index]->SetAwake(false);
+                    // stopped -> do not add to next_awake
+                    continue;
                 }
                 else
                 {
@@ -274,10 +278,19 @@ void SimulatorFCV1::step(float seconds_per_frame)
                     b2Vec2 const e_transverse = e_longitudinal.Skew();
                     b2Vec2 const new_stone_velocity = longitudinal_velocity * e_longitudinal + transverse_velocity * e_transverse;
                     stone_bodies[index]->SetLinearVelocity(new_stone_velocity);
+                    // still awake -> keep for next frame
+                    next_awake.push_back(index);
                 }
             }
+            else
+            {
+                // stone_speed <= EPSILON -> treat as stopped
+                stone_bodies[index]->SetLinearVelocity(b2Vec2_zero);
+                stone_bodies[index]->SetAwake(false);
+                // do not add to next_awake
+            }
 
-            // 角速度を計算
+            // 角速度の更新（停止判定と分離して処理）
             if (std::abs(angular_velocity) > EPSILON)
             {
                 float const angular_accel = angular_acceleration(stone_speed) * seconds_per_frame;
@@ -294,14 +307,27 @@ void SimulatorFCV1::step(float seconds_per_frame)
             }
         }
 
-        // storage.collisions.clear();
-
+        // 物理ステップを進める
         world.Step(
             seconds_per_frame,
-            8,  // velocityIterations (公式マニュアルでの推奨値は 8)
-            3); // positionIterations (公式マニュアルでの推奨値は 3)
+            8,  // velocityIterations
+            3); // positionIterations
+
+        if (!pending_awake.empty())
+        {
+            for (int id : pending_awake)
+            {
+                if (std::find(next_awake.begin(), next_awake.end(), id) == next_awake.end())
+                    next_awake.push_back(id);
+            }
+            pending_awake.clear();
+        }
+
+        // 次フレームの起きている石集合に入れ替え
+        is_awake.swap(next_awake);
+
         step_i += 1;
-        if (step_i > 50000){
+        if (step_i > 50000) {
             break;
         }
     }
@@ -342,11 +368,11 @@ void SimulatorFCV1::set_stones()
             stone_bodies[i]->SetAwake(true);
             stone_bodies[i]->SetTransform(b2Vec2(position.x, position.y), 0.f);
         }
+    }
 
-        if (shot < 5)
-        {
-            is_freeguardzone();
-        }
+    if (shot < 5)
+    {
+        is_freeguardzone();
     }
 }
 
@@ -370,7 +396,8 @@ digitalcurling3::StoneDataWithID SimulatorFCV1::get_stones()
     for (b2Body *body : stone_bodies)
     {
         b2Vec2 position = body->GetPosition();
-        if (position.x > stone_x_upper_limit || position.x < stone_x_lower_limit || position.y > stone_y_upper_limit || position.y < stone_y_lower_limit)
+        // ここも、y方向のみ
+        if (position.x > stone_x_upper_limit || position.x < stone_x_lower_limit)
         {
             body->SetTransform(b2Vec2(0.f, 0.f), 0.f);
         }
@@ -421,7 +448,8 @@ py::array_t<double> StoneSimulator::simulator(py::array_t<double> team0_stone_po
     const py::buffer_info &team1_stone_positions_buf = team1_stone_positions.request();
     simulated_stones.clear();
     storage.clear();
-    for (int i = 0; i < num_threads; i++) {
+    for (int i = 0; i < num_threads; i++)
+    {
         local_simulated_stones[i].clear();
     }
     for (size_t i = 0; i < x_velocities_length; ++i)
@@ -461,44 +489,59 @@ py::array_t<double> StoneSimulator::simulator(py::array_t<double> team0_stone_po
         std::cerr << "Invalid hummer_team value: " << hummer_team << ". It should be either 0 or 1." << std::endl;
     }
 
-    for (int i = 0; i < num_threads; i++) {
+    for (int i = 0; i < num_threads; i++)
+    {
+        if (simulators[i] != nullptr) {     // ← 既存を解放
+            delete simulators[i];
+            simulators[i] = nullptr;
+        }
         simulators[i] = new SimulatorFCV1(storage);
         simulators[i]->change_shot(this->total_shot);
     }
 
-    #pragma omp parallel for num_threads(num_threads) schedule(dynamic, 1)
-    for (int i = 0; i < x_velocities_length; ++i) {
+    simulated_stones.clear();
+    simulated_stones.resize(static_cast<size_t>(x_velocities_length));
+
+    #pragma omp parallel for num_threads(num_threads) schedule(static, 1)
+    for (int i = 0; i < x_velocities_length; ++i)
+    {
         int thread_id = omp_get_thread_num();
         simulators[thread_id]->set_stones();
-        simulators[thread_id]->set_velocity(this->x_velocities[i], this->y_velocities[i], this->angular_velocities[i], this->shot_per_team, this->team_id, i);
+        simulators[thread_id]->set_velocity(this->x_velocities[i],
+                                            this->y_velocities[i],
+                                            this->angular_velocities[i],
+                                            this->shot_per_team,
+                                            this->team_id,
+                                            i);
         simulators[thread_id]->step(0.001f);
         simulators[thread_id]->is_in_playarea();
-        local_simulated_stones[thread_id].push_back(simulators[thread_id]->get_stones());
+
+        // move で代入（get_stones() の戻り値をムーブする）
+        simulated_stones[i] = std::move(simulators[thread_id]->get_stones());
     }
-    simulated_stones.clear();
+
+    // flatten into state_values (ここで state_values を作る)
     state_values.clear();
-
-    for (int i = 0; i < num_threads; i++) {
-        for (digitalcurling3::StoneDataWithID stone : local_simulated_stones[i]) {
-            simulated_stones.push_back(stone);
+    for (const digitalcurling3::StoneDataWithID &stone_with_id : simulated_stones)
+    {
+        for (const digitalcurling3::StoneData &stone : stone_with_id.stones)
+        {
+            state_values.push_back(stone);
         }
     }
 
-    std::sort(simulated_stones.begin(), simulated_stones.end(), [](const digitalcurling3::StoneDataWithID& a, const digitalcurling3::StoneDataWithID& b) {
-        return a.id < b.id;
-    });
-
-    for (const digitalcurling3::StoneDataWithID& stone: simulated_stones) {
-        for (const digitalcurling3::StoneData& stone_data: stone.stones) {
-            state_values.push_back(stone_data.position);
-        }
+    // sanity check
+    size_t expected_total = static_cast<size_t>(x_velocities_length) * stones_per_simulation;
+    if (state_values.size() != expected_total)
+    {
+        std::cerr << "STATE_VALUES SIZE MISMATCH: got=" << state_values.size()
+                  << " expected=" << expected_total << std::endl;
     }
 
     result = convert_stonedata(state_values, x_velocities_length);
-
     return result;
-
 }
+
 
 
 // main関数

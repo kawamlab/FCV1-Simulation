@@ -305,7 +305,7 @@ private:
     std::vector<int> moved;
     std::vector<int> on_center_line;
     std::vector<int> in_free_guard_zone;
-    digitalcurling3::FiveLockWithID five_lock_with_id;
+    std::vector<int> pending_awake;
     int shot_id;
     bool free_guard_zone;
     b2World world;
@@ -344,3 +344,4 @@ private:
     int index;
     int x_velocities_length;
 };
+
