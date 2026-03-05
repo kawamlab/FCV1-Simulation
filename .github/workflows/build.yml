@@ -66,14 +66,18 @@ jobs:
           cmake --build .
           cmake --build . --target install
 
-      - name: Build simulator
+      - name: Build simulator (macOS)
+        if: matrix.os == 'macos-latest'
         run: |
           cd src/build
-          if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            cmake .. -DOpenMP_ROOT="$(brew --prefix libomp)"
-          else
-            cmake ..
-          fi
+          cmake .. -DOpenMP_ROOT="$(brew --prefix libomp)"
+          cmake --build . --config Release
+
+      - name: Build simulator (Windows/Ubuntu)
+        if: matrix.os != 'macos-latest'
+        run: |
+          cd src/build
+          cmake ..
           cmake --build . --config Release
 
       - name: Copy artifact (Windows)
