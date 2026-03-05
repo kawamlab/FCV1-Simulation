@@ -69,7 +69,11 @@ jobs:
       - name: Build simulator
         run: |
           cd src/build
-          cmake ..
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            cmake .. -DOpenMP_ROOT="$(brew --prefix libomp)"
+          else
+            cmake ..
+          fi
           cmake --build . --config Release
 
       - name: Copy artifact (Windows)

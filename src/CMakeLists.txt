@@ -7,7 +7,7 @@ set(box2d_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../extern/box2d/build/lib/cmake/box2d
 set(nlohmann_json_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../extern/json/build")
 
 find_package(pybind11 REQUIRED)
-find_package(OpenMP REQUIRED)
+find_package(OpenMP REQUIRED COMPONENTS CXX)
 find_package(box2d REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
