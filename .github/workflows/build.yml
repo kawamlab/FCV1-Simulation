@@ -90,6 +90,11 @@ jobs:
         run: |
           cp src/build/simulator*.so simulator-${{ matrix.os }}-py${{ matrix.python-version }}.so
 
+      - name: Copy artifact (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cp src/build/simulator*.so simulator-${{ matrix.os }}-py${{ matrix.python-version }}.so
+
       - name: Upload artifact (Windows)
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
