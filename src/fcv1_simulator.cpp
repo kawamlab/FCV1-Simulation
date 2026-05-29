@@ -397,7 +397,7 @@ digitalcurling3::StoneDataWithID SimulatorFCV1::get_stones()
     {
         b2Vec2 position = body->GetPosition();
         // ここも、y方向のみ
-        if (position.x > stone_x_upper_limit || position.x < stone_x_lower_limit)
+        if (position.x > stone_x_upper_limit || position.x < stone_x_lower_limit || position.y > stone_y_upper_limit || position.y < stone_y_lower_limit)
         {
             body->SetTransform(b2Vec2(0.f, 0.f), 0.f);
         }
