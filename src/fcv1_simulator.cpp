@@ -248,7 +248,7 @@ void SimulatorFCV1::step(float seconds_per_frame)
             {
                 digitalcurling3::Vector2 stone_position = {stone_bodies[index]->GetPosition().x, stone_bodies[index]->GetPosition().y};
                 // ストーンがシート外の場合は初期位置へ戻して除外 ただし、y座標方向については今回だけ無視
-                if (stone_position.x > stone_x_upper_limit || stone_x_lower_limit > stone_position.x)
+                if (stone_position.x > stone_x_upper_limit || stone_x_lower_limit > stone_position.x || stone_y_upper_limit < stone_position.y)
                 {
                     auto stone = stones[index];
                     stone_bodies[index]->SetTransform(b2Vec2(0.f, 0.f), 0.f);
